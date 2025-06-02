@@ -1,0 +1,31 @@
+{
+  "name": "nextjs-ffmpeg-starter",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@ffmpeg/ffmpeg": "*",
+    "@ffmpeg/util": "*",
+    "@types/node": "^22.15.29",
+    "@types/react": "^19.1.6",
+    "@types/react-dom": "^19.1.5",
+    "next": "^15.4.0-canary.61",
+    "postcss": "8.4.31",
+    "react": "^19.2.0-canary-526dd340-20250602",
+    "react-dom": "^19.2.0-canary-526dd340-20250602",
+    "typescript": "^5.8.3"
+  },
+  "packageManager": "yarn@1.22.22+sha1.ac34549e6aa8e7ead463a7407e1c7390f61a6610",
+  "devDependencies": {
+    "@babel/core": "^7.27.4",
+    "@babel/runtime": "^7.27.4",
+    "babel-loader": "^10.0.0",
+    "babel-preset-react-app": "file:./babel-preset-react-app",
+    "prettier": "^3.5.3"
+  }
+}
