@@ -46794,8 +46794,9 @@ function requireUtil () {
 	});
 	util$2.getTypes = getTypes;
 	util$2.isReference = isReference;
+	util$2.newHelpersAvailable = void 0;
 	util$2.replaceWithOrRemove = replaceWithOrRemove;
-	util$2.runtimeProperty = runtimeProperty;
+	util$2.runtimeProperty = void 0;
 	util$2.wrapWithTypes = wrapWithTypes;
 	let currentTypes = null;
 	function wrapWithTypes(types, fn) {
@@ -46812,9 +46813,21 @@ function requireUtil () {
 	function getTypes() {
 	  return currentTypes;
 	}
-	function runtimeProperty(name) {
-	  const t = getTypes();
-	  return t.memberExpression(t.identifier("regeneratorRuntime"), t.identifier(name), false);
+	util$2.newHelpersAvailable = void 0;
+	{
+	  util$2.newHelpersAvailable = (file) => {
+	    return file.availableHelper("regenerator") && !getTypes().isIdentifier(file.addHelper("regenerator"), {
+	      name: "__interal_marker_fallback_regenerator__"
+	    });
+	  };
+	}
+	util$2.runtimeProperty = void 0;
+	{
+	  util$2.runtimeProperty = function(file, name) {
+	    const t = getTypes();
+	    const helper = file.addHelper("regeneratorRuntime");
+	    return t.memberExpression(t.isArrowFunctionExpression(helper) && t.isIdentifier(helper.body) ? helper.body : t.callExpression(helper, []), t.identifier(name), false);
+	  };
 	}
 	function isReference(path) {
 	  return path.isReferenced() || path.parentPath.isAssignmentExpression({
@@ -46922,10 +46935,7 @@ function requireHoist () {
 	      declarations.push(t.variableDeclarator(vars[name], null));
 	    }
 	  });
-	  if (declarations.length === 0) {
-	    return null;
-	  }
-	  return t.variableDeclaration("var", declarations);
+	  return declarations;
 	}
 	return hoist;
 }
@@ -47178,18 +47188,31 @@ function requireEmit () {
 	  }
 	};
 	class Emitter {
-	  constructor(contextId) {
+	  constructor(contextId, scope, vars, pluginPass) {
 	    this.nextTempId = void 0;
 	    this.contextId = void 0;
+	    this.index = void 0;
+	    this.indexMap = void 0;
 	    this.listing = void 0;
+	    this.returns = void 0;
+	    this.lastDefaultIndex = void 0;
 	    this.marked = void 0;
 	    this.insertedLocs = void 0;
 	    this.finalLoc = void 0;
 	    this.tryEntries = void 0;
 	    this.leapManager = void 0;
+	    this.scope = void 0;
+	    this.vars = void 0;
+	    this.pluginPass = void 0;
+	    this.pluginPass = pluginPass;
+	    this.scope = scope;
+	    this.vars = vars;
 	    this.nextTempId = 0;
 	    this.contextId = contextId;
 	    this.listing = [];
+	    this.index = 0;
+	    this.indexMap = /* @__PURE__ */ new Map([[0, 0]]);
+	    this.returns = /* @__PURE__ */ new Set();
 	    this.marked = [true];
 	    this.insertedLocs = /* @__PURE__ */ new Set();
 	    this.finalLoc = this.loc();
@@ -47207,14 +47230,19 @@ function requireEmit () {
 	  getContextId() {
 	    return _core.types.cloneNode(this.contextId);
 	  }
-	  mark(loc) {
-	    const index = this.listing.length;
-	    if (loc.value === PENDING_LOCATION) {
-	      loc.value = index;
-	    } else {
-	      _assert.strictEqual(loc.value, index);
+	  getIndex() {
+	    if (!this.indexMap.has(this.listing.length)) {
+	      this.indexMap.set(this.listing.length, ++this.index);
 	    }
-	    this.marked[index] = true;
+	    return this.index;
+	  }
+	  mark(loc) {
+	    if (loc.value === PENDING_LOCATION) {
+	      loc.value = this.getIndex();
+	    } else {
+	      _assert.strictEqual(loc.value, this.index);
+	    }
+	    this.marked[this.listing.length] = true;
 	    return loc;
 	  }
 	  emit(node) {
@@ -47231,11 +47259,12 @@ function requireEmit () {
 	  assign(lhs, rhs) {
 	    return _core.types.expressionStatement(_core.types.assignmentExpression("=", _core.types.cloneNode(lhs), rhs));
 	  }
-	  contextProperty(name, computed) {
+	  contextProperty(name) {
+	    const computed = name === "catch";
 	    return _core.types.memberExpression(this.getContextId(), computed ? _core.types.stringLiteral(name) : _core.types.identifier(name), !!computed);
 	  }
 	  clearPendingException(tryLoc, assignee) {
-	    const catchCall = _core.types.callExpression(this.contextProperty("catch", true), [_core.types.cloneNode(tryLoc)]);
+	    const catchCall = _core.types.callExpression(this.contextProperty("catch"), [_core.types.cloneNode(tryLoc)]);
 	    if (assignee) {
 	      this.emitAssign(assignee, catchCall);
 	    } else {
@@ -47243,11 +47272,11 @@ function requireEmit () {
 	    }
 	  }
 	  jump(toLoc) {
-	    this.emitAssign(this.contextProperty("next"), toLoc);
+	    this.emitAssign(this.contextProperty(util.newHelpersAvailable(this.pluginPass) ? "n" : "next"), toLoc);
 	    this.emit(_core.types.breakStatement());
 	  }
 	  jumpIf(test, toLoc) {
-	    this.emit(_core.types.ifStatement(test, _core.types.blockStatement([this.assign(this.contextProperty("next"), toLoc), _core.types.breakStatement()])));
+	    this.emit(_core.types.ifStatement(test, _core.types.blockStatement([this.assign(this.contextProperty(util.newHelpersAvailable(this.pluginPass) ? "n" : "next"), toLoc), _core.types.breakStatement()])));
 	  }
 	  jumpIfNot(test, toLoc) {
 	    let negatedTest;
@@ -47256,13 +47285,18 @@ function requireEmit () {
 	    } else {
 	      negatedTest = _core.types.unaryExpression("!", test);
 	    }
-	    this.emit(_core.types.ifStatement(negatedTest, _core.types.blockStatement([this.assign(this.contextProperty("next"), toLoc), _core.types.breakStatement()])));
+	    this.emit(_core.types.ifStatement(negatedTest, _core.types.blockStatement([this.assign(this.contextProperty(util.newHelpersAvailable(this.pluginPass) ? "n" : "next"), toLoc), _core.types.breakStatement()])));
 	  }
-	  makeTempVar() {
+	  makeContextTempVar() {
 	    return this.contextProperty("t" + this.nextTempId++);
 	  }
-	  getContextFunction(id) {
-	    return _core.types.functionExpression(id || null, [this.getContextId()], _core.types.blockStatement([this.getDispatchLoop()]), false, false);
+	  makeTempVar() {
+	    const id = this.scope.generateUidIdentifier("t");
+	    this.vars.push(_core.types.variableDeclarator(id));
+	    return _core.types.cloneNode(id);
+	  }
+	  getContextFunction() {
+	    return _core.types.functionExpression(null, [this.getContextId()], _core.types.blockStatement([this.getDispatchLoop()]), false, false);
 	  }
 	  getDispatchLoop() {
 	    const self = this;
@@ -47270,8 +47304,8 @@ function requireEmit () {
 	    let current;
 	    let alreadyEnded = false;
 	    self.listing.forEach(function(stmt, i) {
-	      if (self.marked.hasOwnProperty(i)) {
-	        cases.push(_core.types.switchCase(_core.types.numericLiteral(i), current = []));
+	      if (self.marked[i]) {
+	        cases.push(_core.types.switchCase(_core.types.numericLiteral(self.indexMap.get(i)), current = []));
 	        alreadyEnded = false;
 	      }
 	      if (!alreadyEnded) {
@@ -47279,16 +47313,22 @@ function requireEmit () {
 	        if (_core.types.isCompletionStatement(stmt)) alreadyEnded = true;
 	      }
 	    });
-	    this.finalLoc.value = this.listing.length;
-	    cases.push(_core.types.switchCase(this.finalLoc, []), _core.types.switchCase(_core.types.stringLiteral("end"), [_core.types.returnStatement(_core.types.callExpression(this.contextProperty("stop"), []))]));
-	    return _core.types.whileStatement(_core.types.numericLiteral(1), _core.types.switchStatement(_core.types.assignmentExpression("=", this.contextProperty("prev"), this.contextProperty("next")), cases));
+	    this.finalLoc.value = this.getIndex();
+	    if (util.newHelpersAvailable(this.pluginPass)) {
+	      if (this.lastDefaultIndex === this.index || !this.returns.has(this.listing.length)) {
+	        cases.push(_core.types.switchCase(this.finalLoc, [_core.types.returnStatement(_core.types.callExpression(this.contextProperty("a"), [_core.types.numericLiteral(2)]))]));
+	      }
+	    } else {
+	      cases.push(_core.types.switchCase(this.finalLoc, []), _core.types.switchCase(_core.types.stringLiteral("end"), [_core.types.returnStatement(_core.types.callExpression(this.contextProperty("stop"), []))]));
+	    }
+	    return _core.types.whileStatement(_core.types.numericLiteral(1), _core.types.switchStatement(util.newHelpersAvailable(this.pluginPass) ? this.contextProperty("n") : _core.types.assignmentExpression("=", this.contextProperty("prev"), this.contextProperty("next")), cases));
 	  }
 	  getTryLocsList() {
 	    if (this.tryEntries.length === 0) {
 	      return null;
 	    }
 	    let lastLocValue = 0;
-	    return _core.types.arrayExpression(this.tryEntries.map(function(tryEntry) {
+	    const arrayExpression = _core.types.arrayExpression(this.tryEntries.map(function(tryEntry) {
 	      const thisLocValue = tryEntry.firstLoc.value;
 	      _assert.ok(thisLocValue >= lastLocValue, "try entries out of order");
 	      lastLocValue = thisLocValue;
@@ -47301,6 +47341,10 @@ function requireEmit () {
 	      }
 	      return _core.types.arrayExpression(locs.map((loc) => loc && _core.types.cloneNode(loc)));
 	    }));
+	    if (util.newHelpersAvailable(this.pluginPass)) {
+	      arrayExpression.elements.reverse();
+	    }
+	    return arrayExpression;
 	  }
 	  explode(path, ignoreResult) {
 	    const node = path.node;
@@ -47394,7 +47438,8 @@ function requireEmit () {
 	        head = this.loc();
 	        after = this.loc();
 	        const keyIterNextFn = self.makeTempVar();
-	        self.emitAssign(keyIterNextFn, _core.types.callExpression(util.runtimeProperty("keys"), [self.explodeExpression(path.get("right"))]));
+	        const helper = util.newHelpersAvailable(this.pluginPass) ? this.pluginPass.addHelper("regeneratorKeys") : util.runtimeProperty(this.pluginPass, "keys");
+	        self.emitAssign(keyIterNextFn, _core.types.callExpression(helper, [self.explodeExpression(path.get("right"))]));
 	        self.mark(head);
 	        const keyInfoTmpVar = self.makeTempVar();
 	        self.jumpIf(_core.types.memberExpression(_core.types.assignmentExpression("=", keyInfoTmpVar, _core.types.callExpression(_core.types.cloneNode(keyIterNextFn), [])), _core.types.identifier("done"), false), after);
@@ -47407,13 +47452,13 @@ function requireEmit () {
 	        break;
 	      case "BreakStatement":
 	        self.emitAbruptCompletion({
-	          type: "break",
+	          type: 3,
 	          target: self.leapManager.getBreakLoc(path.node.label)
 	        });
 	        break;
 	      case "ContinueStatement":
 	        self.emitAbruptCompletion({
-	          type: "continue",
+	          type: 3,
 	          target: self.leapManager.getContinueLoc(path.node.label)
 	        });
 	        break;
@@ -47448,6 +47493,7 @@ function requireEmit () {
 	        if (defaultLoc.value === PENDING_LOCATION) {
 	          self.mark(defaultLoc);
 	          _assert.strictEqual(after.value, defaultLoc.value);
+	          this.lastDefaultIndex = this.index;
 	        }
 	        break;
 	      case "IfStatement":
@@ -47464,7 +47510,7 @@ function requireEmit () {
 	        break;
 	      case "ReturnStatement":
 	        self.emitAbruptCompletion({
-	          type: "return",
+	          type: 2,
 	          value: self.explodeExpression(path.get("argument"))
 	        });
 	        break;
@@ -47480,7 +47526,7 @@ function requireEmit () {
 	        const tryEntry = new leap.TryEntry(self.getUnmarkedCurrentLoc(), catchEntry, finallyEntry);
 	        self.tryEntries.push(tryEntry);
 	        self.updateContextPrevLoc(tryEntry.firstLoc);
-	        self.leapManager.withEntry(tryEntry, function() {
+	        self.leapManager.withEntry(tryEntry, () => {
 	          self.explodeStatement(path.get("block"));
 	          if (catchLoc) {
 	            if (finallyLoc) {
@@ -47491,7 +47537,11 @@ function requireEmit () {
 	            self.updateContextPrevLoc(self.mark(catchLoc));
 	            const bodyPath = path.get("handler.body");
 	            const safeParam = self.makeTempVar();
-	            self.clearPendingException(tryEntry.firstLoc, safeParam);
+	            if (util.newHelpersAvailable(this.pluginPass)) {
+	              this.emitAssign(safeParam, self.contextProperty("v"));
+	            } else {
+	              self.clearPendingException(tryEntry.firstLoc, safeParam);
+	            }
 	            bodyPath.traverse(catchParamVisitor, {
 	              getSafeParam: () => _core.types.cloneNode(safeParam),
 	              catchParamName: handler.param.name
@@ -47505,7 +47555,7 @@ function requireEmit () {
 	            self.leapManager.withEntry(finallyEntry, function() {
 	              self.explodeStatement(path.get("finalizer"));
 	            });
-	            self.emit(_core.types.returnStatement(_core.types.callExpression(self.contextProperty("finish"), [finallyEntry.firstLoc])));
+	            self.emit(_core.types.returnStatement(_core.types.callExpression(self.contextProperty(util.newHelpersAvailable(this.pluginPass) ? "f" : "finish"), [finallyEntry.firstLoc])));
 	          }
 	        });
 	        self.mark(after);
@@ -47521,31 +47571,33 @@ function requireEmit () {
 	    }
 	  }
 	  emitAbruptCompletion(record) {
-	    _assert.notStrictEqual(record.type, "normal", "normal completions are not abrupt");
-	    const abruptArgs = [_core.types.stringLiteral(record.type)];
-	    if (record.type === "break" || record.type === "continue") {
+	    const abruptArgs = [util.newHelpersAvailable(this.pluginPass) ? _core.types.numericLiteral(record.type) : _core.types.stringLiteral(record.type === 3 ? "continue" : "return")];
+	    if (record.type === 3) {
 	      abruptArgs[1] = this.insertedLocs.has(record.target) ? record.target : _core.types.cloneNode(record.target);
-	    } else if (record.type === "return" || record.type === "throw") {
+	    } else if (record.type === 2) {
 	      if (record.value) {
 	        abruptArgs[1] = _core.types.cloneNode(record.value);
 	      }
 	    }
-	    this.emit(_core.types.returnStatement(_core.types.callExpression(this.contextProperty("abrupt"), abruptArgs)));
+	    this.emit(_core.types.returnStatement(_core.types.callExpression(this.contextProperty(util.newHelpersAvailable(this.pluginPass) ? "a" : "abrupt"), abruptArgs)));
+	    if (record.type === 2) {
+	      this.returns.add(this.listing.length);
+	    }
 	  }
 	  getUnmarkedCurrentLoc() {
-	    return _core.types.numericLiteral(this.listing.length);
+	    return _core.types.numericLiteral(this.getIndex());
 	  }
 	  updateContextPrevLoc(loc) {
 	    if (loc) {
 	      if (loc.value === PENDING_LOCATION) {
-	        loc.value = this.listing.length;
+	        loc.value = this.getIndex();
 	      } else {
-	        _assert.strictEqual(loc.value, this.listing.length);
+	        _assert.strictEqual(loc.value, this.index);
 	      }
 	    } else {
 	      loc = this.getUnmarkedCurrentLoc();
 	    }
-	    this.emitAssign(this.contextProperty("prev"), loc);
+	    this.emitAssign(this.contextProperty(util.newHelpersAvailable(this.pluginPass) ? "p" : "prev"), loc);
 	  }
 	  explodeViaTempVar(tempVar, childPath, hasLeapingChildren, ignoreChildResult) {
 	    _assert.ok(!ignoreChildResult || !tempVar, "Ignoring the result of a child expression but forcing it to be assigned to a temporary variable?");
@@ -47685,19 +47737,27 @@ function requireEmit () {
 	        after = this.loc();
 	        const arg = path.node.argument && self.explodeExpression(path.get("argument"));
 	        if (arg && path.node.delegate) {
-	          const result2 = self.makeTempVar();
-	          const ret2 = _core.types.returnStatement(_core.types.callExpression(self.contextProperty("delegateYield"), [arg, _core.types.stringLiteral(result2.property.name), after]));
-	          ret2.loc = expr.loc;
-	          self.emit(ret2);
-	          self.mark(after);
-	          return result2;
+	          if (util.newHelpersAvailable(this.pluginPass)) {
+	            const ret2 = _core.types.returnStatement(_core.types.callExpression(self.contextProperty("d"), [_core.types.callExpression(this.pluginPass.addHelper("regeneratorValues"), [arg]), after]));
+	            ret2.loc = expr.loc;
+	            self.emit(ret2);
+	            self.mark(after);
+	            return self.contextProperty("v");
+	          } else {
+	            const result2 = self.makeContextTempVar();
+	            const ret2 = _core.types.returnStatement(_core.types.callExpression(self.contextProperty("delegateYield"), [arg, _core.types.stringLiteral(result2.property.name), after]));
+	            ret2.loc = expr.loc;
+	            self.emit(ret2);
+	            self.mark(after);
+	            return result2;
+	          }
 	        }
-	        self.emitAssign(self.contextProperty("next"), after);
+	        self.emitAssign(self.contextProperty(util.newHelpersAvailable(this.pluginPass) ? "n" : "next"), after);
 	        const ret = _core.types.returnStatement(_core.types.cloneNode(arg) || null);
 	        ret.loc = expr.loc;
 	        self.emit(ret);
 	        self.mark(after);
-	        return self.contextProperty("sent");
+	        return self.contextProperty(util.newHelpersAvailable(self.pluginPass) ? "v" : "sent");
 	      case "ClassExpression":
 	        return finish(self.explodeClass(path));
 	      default:
@@ -47799,10 +47859,11 @@ function requireVisit () {
 	      path.ensureBlock();
 	      const bodyBlockPath = path.get("body");
 	      if (node.async) {
-	        bodyBlockPath.traverse(awaitVisitor);
+	        bodyBlockPath.traverse(awaitVisitor, this);
 	      }
 	      bodyBlockPath.traverse(functionSentVisitor, {
-	        context: contextId
+	        context: contextId,
+	        pluginPass: this
 	      });
 	      const outerBody = [];
 	      const innerBody = [];
@@ -47819,10 +47880,9 @@ function requireVisit () {
 	      if (outerBody.length > 0) {
 	        bodyBlockPath.node.body = innerBody;
 	      }
-	      const outerFnExpr = getOuterFnExpr(path);
+	      const outerFnExpr = getOuterFnExpr(this, path);
 	      t.assertIdentifier(node.id);
-	      const innerFnId = t.identifier(node.id.name + "$");
-	      let vars = (0, _hoist.hoist)(path);
+	      const vars = (0, _hoist.hoist)(path);
 	      const context = {
 	        usesThis: false,
 	        usesArguments: false,
@@ -47830,15 +47890,14 @@ function requireVisit () {
 	      };
 	      path.traverse(argumentsThisVisitor, context);
 	      if (context.usesArguments) {
-	        vars = vars || t.variableDeclaration("var", []);
-	        vars.declarations.push(t.variableDeclarator(t.clone(argsId), t.identifier("arguments")));
+	        vars.push(t.variableDeclarator(t.clone(argsId), t.identifier("arguments")));
 	      }
-	      const emitter = new _emit.Emitter(contextId);
+	      const emitter = new _emit.Emitter(contextId, path.scope, vars, this);
 	      emitter.explode(path.get("body"));
-	      if (vars && vars.declarations.length > 0) {
-	        outerBody.push(vars);
+	      if (vars.length > 0) {
+	        outerBody.push(t.variableDeclaration("var", vars));
 	      }
-	      const wrapArgs = [emitter.getContextFunction(innerFnId)];
+	      const wrapArgs = [emitter.getContextFunction()];
 	      const tryLocsList = emitter.getTryLocsList();
 	      if (node.generator) {
 	        wrapArgs.push(outerFnExpr);
@@ -47862,7 +47921,7 @@ function requireVisit () {
 	        } while (currentScope = currentScope.parent);
 	        wrapArgs.push(t.identifier("Promise"));
 	      }
-	      const wrapCall = t.callExpression(util.runtimeProperty(node.async ? "async" : "wrap"), wrapArgs);
+	      const wrapCall = t.callExpression(util.newHelpersAvailable(this) ? !node.async ? t.memberExpression(t.callExpression(this.addHelper("regenerator"), []), t.identifier("w")) : node.generator ? this.addHelper("regeneratorAsyncGen") : this.addHelper("regeneratorAsync") : util.runtimeProperty(this, node.async ? "async" : "wrap"), wrapArgs);
 	      outerBody.push(t.returnStatement(wrapCall));
 	      node.body = t.blockStatement(outerBody);
 	      path.get("body.body").forEach((p) => p.scope.registerDeclaration(p));
@@ -47878,7 +47937,7 @@ function requireVisit () {
 	        node.async = false;
 	      }
 	      if (wasGeneratorFunction && t.isExpression(node)) {
-	        util.replaceWithOrRemove(path, t.callExpression(util.runtimeProperty("mark"), [node]));
+	        util.replaceWithOrRemove(path, t.callExpression(util.newHelpersAvailable(this) ? t.memberExpression(t.callExpression(this.addHelper("regenerator"), []), t.identifier("m")) : util.runtimeProperty(this, "mark"), [node]));
 	        path.addComment("leading", "#__PURE__");
 	      }
 	      const insertedLocs = emitter.getInsertedLocs();
@@ -47908,7 +47967,7 @@ function requireVisit () {
 	    return false;
 	  }
 	}
-	function getOuterFnExpr(funPath) {
+	function getOuterFnExpr(state, funPath) {
 	  const t = util.getTypes();
 	  const node = funPath.node;
 	  t.assertFunction(node);
@@ -47916,7 +47975,7 @@ function requireVisit () {
 	    node.id = funPath.scope.parent.generateUidIdentifier("callee");
 	  }
 	  if (node.generator && t.isFunctionDeclaration(node)) {
-	    return getMarkedFunctionId(funPath);
+	    return getMarkedFunctionId(state, funPath);
 	  }
 	  return t.clone(node.id);
 	}
@@ -47927,7 +47986,7 @@ function requireVisit () {
 	  }
 	  return markInfo.get(node);
 	}
-	function getMarkedFunctionId(funPath) {
+	function getMarkedFunctionId(state, funPath) {
 	  const t = util.getTypes();
 	  const node = funPath.node;
 	  t.assertIdentifier(node.id);
@@ -47947,7 +48006,7 @@ function requireVisit () {
 	  }
 	  _assert.strictEqual(info.declPath.node, info.decl);
 	  const markedId = blockPath.scope.generateUidIdentifier("marked");
-	  const markCallExp = t.callExpression(util.runtimeProperty("mark"), [t.clone(node.id)]);
+	  const markCallExp = t.callExpression(util.newHelpersAvailable(state) ? t.memberExpression(t.callExpression(state.addHelper("regenerator"), []), t.identifier("m")) : util.runtimeProperty(state, "mark"), [t.clone(node.id)]);
 	  const index = info.decl.declarations.push(t.variableDeclarator(markedId, markCallExp)) - 1;
 	  const markCallExpPath = info.declPath.get("declarations." + index + ".init");
 	  _assert.strictEqual(markCallExpPath.node, markCallExp);
@@ -47969,13 +48028,13 @@ function requireVisit () {
 	  }
 	};
 	const functionSentVisitor = {
-	  MetaProperty(path) {
+	  MetaProperty(path, state) {
 	    const {
 	      node
 	    } = path;
 	    if (node.meta.name === "function" && node.property.name === "sent") {
 	      const t = util.getTypes();
-	      util.replaceWithOrRemove(path, t.memberExpression(t.clone(this.context), t.identifier("_sent")));
+	      util.replaceWithOrRemove(path, t.memberExpression(t.clone(this.context), t.identifier(util.newHelpersAvailable(state.pluginPass) ? "v" : "_sent")));
 	    }
 	  }
 	};
@@ -47986,7 +48045,8 @@ function requireVisit () {
 	  AwaitExpression: function(path) {
 	    const t = util.getTypes();
 	    const argument = path.node.argument;
-	    util.replaceWithOrRemove(path, t.yieldExpression(t.callExpression(util.runtimeProperty("awrap"), [argument]), false));
+	    const helper = util.newHelpersAvailable(this) ? this.addHelper("awaitAsyncGenerator") : util.runtimeProperty(this, "awrap");
+	    util.replaceWithOrRemove(path, t.yieldExpression(t.callExpression(helper, [argument]), false));
 	  }
 	};
 	return visit;
@@ -48013,11 +48073,9 @@ function requireLib$n () {
 	    name: "transform-regenerator",
 	    visitor: traverse.visitors.merge([(0, _visit.getVisitor)(t), {
 	      CallExpression(path) {
-	        {
-	          var _this$availableHelper;
-	          if (!((_this$availableHelper = this.availableHelper) != null && _this$availableHelper.call(this, "regeneratorRuntime"))) {
-	            return;
-	          }
+	        var _this$availableHelper;
+	        if (!((_this$availableHelper = this.availableHelper) != null && _this$availableHelper.call(this, "regeneratorRuntime"))) {
+	          return;
 	        }
 	        const callee = path.get("callee");
 	        if (!callee.isMemberExpression()) return;
@@ -48026,11 +48084,9 @@ function requireLib$n () {
 	          name: "regeneratorRuntime"
 	        })) {
 	          const helper = this.addHelper("regeneratorRuntime");
-	          {
-	            if (t.isArrowFunctionExpression(helper)) {
-	              obj.replaceWith(helper.body);
-	              return;
-	            }
+	          if (t.isArrowFunctionExpression(helper)) {
+	            obj.replaceWith(helper.body);
+	            return;
 	          }
 	          obj.replaceWith(t.callExpression(helper, []));
 	        }

@@ -1,14 +1,14 @@
-"use strict";
+'use strict';
 
-var require$$0 = require("path");
-var index = require("./index-DDQISHMI.cjs");
-require("@babel/types");
-require("@babel/traverse");
-require("@babel/core");
-require("assert");
-require("module");
-require("fs");
-require("os");
+var require$$0 = require('path');
+var index = require('./index-n3FxmJ6u.cjs');
+require('@babel/types');
+require('@babel/traverse');
+require('@babel/core');
+require('assert');
+require('module');
+require('fs');
+require('os');
 
 const validateBoolOption = (name, value, defaultValue) => {
   if (typeof value === "undefined") {
@@ -31,19 +31,17 @@ function dependencies(api, opts) {
   var useAbsoluteRuntime = validateBoolOption(
     "absoluteRuntime",
     opts.absoluteRuntime,
-    true,
+    true
   );
   var absoluteRuntimePath = void 0;
   if (useAbsoluteRuntime) {
     absoluteRuntimePath = require$$0.dirname(
-      require.resolve("@babel/runtime/package.json"),
+      require.resolve("@babel/runtime/package.json")
     );
   }
   if (!isEnvDevelopment && !isEnvProduction && !isEnvTest) {
     throw new Error(
-      'Using `babel-preset-react-app` requires that you specify `NODE_ENV` or `BABEL_ENV` environment variables. Valid values are "development", "test", and "production". Instead, received: ' +
-        JSON.stringify(env) +
-        ".",
+      'Using `babel-preset-react-app` requires that you specify `NODE_ENV` or `BABEL_ENV` environment variables. Valid values are "development", "test", and "production". Instead, received: ' + JSON.stringify(env) + "."
     );
   }
   return {
@@ -58,11 +56,11 @@ function dependencies(api, opts) {
         index.babelPresetEnv,
         {
           targets: {
-            node: "current",
+            node: "current"
           },
           // Exclude transforms that make all code slower
-          exclude: ["transform-typeof-symbol"],
-        },
+          exclude: ["transform-typeof-symbol"]
+        }
       ],
       (isEnvProduction || isEnvDevelopment) && [
         // Latest stable ECMAScript features
@@ -74,9 +72,9 @@ function dependencies(api, opts) {
           // This will need to change once we upgrade to corejs@3
           corejs: 3,
           // Exclude transforms that make all code slower
-          exclude: ["transform-typeof-symbol"],
-        },
-      ],
+          exclude: ["transform-typeof-symbol"]
+        }
+      ]
     ].filter(Boolean),
     plugins: [
       // Disabled as it's handled automatically by preset-env, and `selectiveLoose` isn't
@@ -121,10 +119,10 @@ function dependencies(api, opts) {
           // Undocumented option that lets us encapsulate our runtime, ensuring
           // the correct version is used
           // https://github.com/babel/babel/blob/090c364a90fe73d36a30707fc612ce037bdbbb24/packages/babel-plugin-transform-runtime/src/index.js#L35-L42
-          absoluteRuntime: absoluteRuntimePath,
-        },
-      ],
-    ].filter(Boolean),
+          absoluteRuntime: absoluteRuntimePath
+        }
+      ]
+    ].filter(Boolean)
   };
 }
 

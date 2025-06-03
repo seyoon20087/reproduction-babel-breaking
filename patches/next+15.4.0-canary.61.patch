@@ -1,0 +1,36 @@
+diff --git a/node_modules/next/dist/esm/server/config-utils.js b/node_modules/next/dist/esm/server/config-utils.js
+index a8fccf9..2866aa9 100644
+--- a/node_modules/next/dist/esm/server/config-utils.js
++++ b/node_modules/next/dist/esm/server/config-utils.js
+@@ -163,11 +163,11 @@ export function loadWebpackHook() {
+         ],
+         [
+             '@babel/runtime',
+-            'next/dist/compiled/@babel/runtime/package.json'
++            '@babel/runtime/package.json'
+         ],
+         [
+             '@babel/runtime/package.json',
+-            'next/dist/compiled/@babel/runtime/package.json'
++            '@babel/runtime/package.json'
+         ]
+     ].map(// Use dynamic require.resolve to avoid statically analyzable since they're only for build time
+     ([request, replacement])=>[
+diff --git a/node_modules/next/dist/server/config-utils.js b/node_modules/next/dist/server/config-utils.js
+index abc217e..efb46a9 100644
+--- a/node_modules/next/dist/server/config-utils.js
++++ b/node_modules/next/dist/server/config-utils.js
+@@ -173,11 +173,11 @@ function loadWebpackHook() {
+         ],
+         [
+             '@babel/runtime',
+-            'next/dist/compiled/@babel/runtime/package.json'
++            '@babel/runtime/package.json'
+         ],
+         [
+             '@babel/runtime/package.json',
+-            'next/dist/compiled/@babel/runtime/package.json'
++            '@babel/runtime/package.json'
+         ]
+     ].map(// Use dynamic require.resolve to avoid statically analyzable since they're only for build time
+     ([request, replacement])=>[

@@ -1,7 +1,7 @@
 'use strict';
 
 var require$$0$1 = require('path');
-var index = require('./index-DDQISHMI.cjs');
+var index = require('./index-n3FxmJ6u.cjs');
 var require$$0 = require('@babel/core');
 var require$$0$2 = require('assert');
 

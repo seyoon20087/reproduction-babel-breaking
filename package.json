@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "*",
@@ -26,6 +27,8 @@
     "@babel/runtime": "^7.27.4",
     "babel-loader": "^10.0.0",
     "babel-preset-react-app": "file:./babel-preset-react-app",
+    "patch-package": "^8.0.0",
+    "postinstall-postinstall": "^2.1.0",
     "prettier": "^3.5.3"
   }
 }
